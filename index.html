@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Replay Pro Ultra</title>
+    <link rel="icon" href="data:,">
+    <script src="src/charting_library/charting_library.standalone.js"></script>
+    <script src="src/libs/sweetalert2.min.js"></script>
+    <script src="src/libs/lucide.min.js"></script>
+    <script src="src/libs/mousetrap.min.js"></script>
+	
+    <style>
+        :root {
+            --bg-main: #0c0d14; --bg-panel: #161a25; --bg-input: #1e222d; --bg-btn: #2a2e39; --border-color: #363c4e;
+            --text-main: #d1d4dc; --text-muted: #787b86;
+            --accent-blue: #2962ff; --accent-green: #26a69a; --accent-red: #ef5350; --accent-orange: #ff9800;
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin:0; padding:0; background:var(--bg-main); font-family:-apple-system,BlinkMacSystemFont,sans-serif; overflow:hidden; color:var(--text-main); user-select:none; direction:ltr; font-size:12px; }
+
+        #tv_chart_container { width:100%; height:100vh; position:absolute; top:0; left:0; z-index:1; }
+
+        #sidebar-panel {
+            position:absolute; 
+            top:5px; 
+            right:11%; 
+            width:auto; 
+            background:transparent; 
+            border:none; 
+            border-radius:0; 
+            padding:0; 
+            z-index:5;
+            box-shadow:none; 
+            display:flex; 
+            flex-direction:column !important;
+            align-items:flex-end;
+            gap:5px;
+        }
+		#sidebar-panel {
+			pointer-events: none;
+		}
+		#sidebar-panel > * {
+			pointer-events: auto;
+		}
+
+        .sidebar-top-row {
+            display:flex;
+            flex-direction:row;
+            align-items:center;
+            gap:15px;
+        }
+
+        .btn {
+            background:var(--bg-btn); border:1px solid var(--border-color);
+            color:var(--text-main); border-radius:4px; padding:4px 10px;
+            font-size:11px; cursor:pointer; display:flex; align-items:center;
+            justify-content:center; gap:5px; height:28px; box-sizing:border-box;
+            font-weight:500; transition:background .12s, box-shadow .12s;
+        }
+        .btn:hover { background:var(--border-color); }
+        .btn svg   { width:12px; height:12px; flex-shrink:0; }
+        .btn-blue  { background:var(--accent-blue);   border-color:var(--accent-blue);   color:#fff; }
+        .btn-blue:hover  { background:#4d7aff; box-shadow:0 0 10px rgba(41,98,255,.4); }
+        .btn-green { background:var(--accent-green);  border-color:var(--accent-green);  color:#021a17; }
+        .btn-green:hover { background:#2ec4ae; box-shadow:0 0 10px rgba(38,166,154,.4); }
+        .btn-red   { background:var(--accent-red);    border-color:var(--accent-red);    color:#fff; }
+        .btn-red:hover   { background:#f36669; box-shadow:0 0 10px rgba(239,83,80,.4); }
+        .btn-orange{ background:var(--accent-orange); border-color:var(--accent-orange); color:#1a0000; }
+        .btn-orange:hover{ background:#ffad33; }
+        .btn-icon  { width:28px; height:28px; padding:0; }
+		.btn-icon-row {
+			display: flex;
+			justify-content: flex-start;
+			align-items: center;
+            gap: 5px;
+		}
+		.btn-icon-row .btn {
+			width: 29px; height: 29px; padding: 0; 
+			flex-shrink: 0;
+			border-radius: 5px;
+		}
+		.btn-icon-row .btn svg { width: 14px; height: 14px; } 
+
+        .control-input {
+            background:var(--bg-input); border:1px solid var(--border-color);
+            color:#fff; border-radius:4px; padding:4px 6px; font-size:11px;
+            box-sizing:border-box; outline:none; font-family:inherit;
+            transition:border-color .15s;
+        }
+        .control-input:focus { border-color:var(--accent-blue); }
+
+        .panel-row { display:flex; align-items:center; gap:6px; font-size:12px; white-space:nowrap; }
+
+        #balance-row { background:transparent; border:none; border-radius:0; padding:0; } 
+        #current-balance { font-weight:700; font-size:14px; color:var(--accent-green); font-variant-numeric:tabular-nums; }
+
+        #trade-panel-container {
+            display:none; background:var(--bg-panel); border:1px solid var(--border-color);
+            border-radius:6px; padding:8px; flex-direction:column; gap:6px;
+            position:relative !important; top:auto !important; right:auto !important; width:200px; box-shadow:0 8px 28px rgba(0,0,0,.55);
+        }
+        #trade-panel-container.open { display:flex; }
+        #limit-price-row { display:none; }
+
+        #active-positions-list { 
+            max-height:200px; 
+            overflow-y:auto; 
+            display:flex; 
+            flex-direction:column; 
+            gap:4px; 
+            position:relative !important; 
+            top:auto !important; 
+            right:auto !important; 
+            width:45% !important; 
+            margin-top:5px;
+        }
+        .position-card { border-radius:4px; padding:5px 8px; font-size:11px; background:var(--bg-input); transition: background .12s; }
+        .position-card:hover { background: var(--bg-btn); }
+        .pos-buy  { border-left:3px solid var(--accent-green); }
+        .pos-sell { border-left:3px solid var(--accent-red); }
+
+        #pending-orders-container {
+            display:none; text-align:center; font-size:10px;
+            color:var(--text-muted); background:var(--bg-input);
+            border:1px solid var(--border-color); border-radius:4px; padding:2px 6px;
+            position:relative !important; top:auto !important; right:auto !important; width:45% !important; margin-top:5px;
+        }
+
+        #floating-control-bar {
+            position:absolute; bottom:28px; left:50%; transform:translateX(-50%);
+            background:var(--bg-panel); border:1px solid var(--border-color);
+            border-radius:24px; padding:5px 14px;
+            display:flex; align-items:center; gap:8px;
+            box-shadow:0 8px 28px rgba(0,0,0,.6); z-index:10;
+        }
+        #floating-control-bar.collapsed > *:not(#btn-collapse) { display:none !important; }
+        #btn-collapse { border-radius:50%; width:22px; height:22px; padding:0; font-size:14px; line-height:1; }
+        #replay-speed-slider { width:80px; accent-color:var(--accent-blue); cursor:pointer; }
+
+        .modal-overlay { position:fixed; inset:0; background:rgba(8,9,14,.88); backdrop-filter:blur(4px); z-index:100; display:none; align-items:center; justify-content:center; }
+        .modal-overlay.active { display:flex; }
+        .modal-content { background:var(--bg-panel); border:1px solid var(--border-color); border-radius:12px; padding:24px; box-shadow:0 16px 48px rgba(0,0,0,.7); color:var(--text-main); display:flex; flex-direction:column; }
+        .modal-overlay.active { display:flex; }
+        .modal-header { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:4px; }
+
+        #dashboard-overlay .modal-content { width:100vw; height:100vh; border-radius:0 !important; border:none; padding:30px; }
+        .session-grid { display:grid; grid-template-columns:320px 1fr; gap:24px; margin-top:16px; flex:1; min-height:0; transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .session-grid.hide-form { grid-template-columns: 0px 1fr; }
+        .form-section { border-right:1px solid var(--border-color); padding-right:20px; display:flex; flex-direction:column; gap:8px; overflow-y:auto; transition: transform 0.3s, opacity 0.3s, padding 0.3s; }
+        .session-grid.hide-form .form-section { transform: translateX(-100%); opacity: 0; padding: 0; border: none; pointer-events: none; }
+        
+        .list-section { flex:1; overflow-y:auto; display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); grid-auto-rows: minmax(220px, max-content); gap:16px; align-content: start; padding-bottom: 20px; }
+        .field-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; }
+
+        .sess-card { border:1px solid var(--border-color); border-radius:12px; background:var(--bg-input); padding:18px; display:flex; flex-direction:column; justify-content: space-between; aspect-ratio: 1 / 1; box-sizing: border-box; }
+        .sess-card.sess-active { border-color:var(--accent-blue); }
+
+        #history-modal .modal-content { width:360px; max-height:460px; }
+        #history-list { flex:1; overflow-y:auto; font-size:11px; font-family:monospace; background:var(--bg-input); border:1px solid var(--border-color); border-radius:4px; padding:8px; line-height:1.8; }
+
+        #kb-hints { position:absolute; bottom:8px; left:14px; z-index:10; display:flex; gap:10px; align-items:center; color:var(--text-muted); font-size:10px; opacity:.45; transition:opacity .2s; }
+        #kb-hints:hover { opacity:1; }
+        .kbd { background:var(--bg-input); border:1px solid var(--border-color); border-radius:3px; padding:1px 5px; font-size:9px; font-family:monospace; }
+
+        #pos-detail-panel {
+            display: none; position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+            background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px;
+            z-index: 20; width: 320px; box-shadow: 0 8px 32px rgba(0,0,0,.75); flex-direction: column; gap: 9px;
+        }
+        #pos-detail-panel.active { display: flex; }
+        .pd-divider { height: 1px; background: var(--border-color); margin: 1px 0; }
+        .pd-label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+        .swal2-container { z-index: 20000 !important; }
+
+        /* Rules */
+        #tr-panel, .tr-modal-panel {
+            position: fixed !important; top: 40px !important; right: 11% !important; left: auto !important; transform: none !important;
+            width: 230px !important; height: 48vh !important; max-height: 480px !important; z-index: 99999 !important;
+            background: var(--bg-panel) !important; border: 1px solid var(--border-color) !important; border-radius: 8px !important;
+            box-shadow: -5px 5px 25px rgba(0,0,0,0.6) !important; margin: 0 !important; display: flex !important; flex-direction: column !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="tv_chart_container"></div>
+
+    <div id="sidebar-panel">
+        
+        <div class="sidebar-top-row">
+            <div class="panel-row" style="padding:0 2px;">
+                <span style="color:var(--text-muted);">|:</span>
+                <span id="candle-counter" style="font-family:monospace; color:var(--accent-orange);">0 / 0</span>
+            </div>
+
+            <div id="balance-row" class="panel-row">
+                <span style="color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.05em;">|</span>
+                <span id="current-balance">$1,000</span>
+            </div>
+
+            <div class="btn-icon-row">
+                <button class="btn" onclick="TogglePanels.trade()" title="Trade Panel">
+                    <i data-lucide="layers"></i>
+                </button>
+                <button class="btn" onclick="document.getElementById('history-modal').classList.add('active')" title="History">
+                    <i data-lucide="book-open"></i>
+                </button>
+                <button class="btn"
+                    onclick="if(window.SessionManager.getActiveSessionId()) window.SessionManager.exportSessionCSV(window.SessionManager.getActiveSessionId())"
+                    title="Export CSV">
+                    <i data-lucide="download"></i>
+                </button>
+                <button id="btn-advanced-theme" class="btn" title="Chart Templates" onclick="ChartThemes.showPanel()">
+                    <i data-lucide="palette"></i>
+                </button>
+                <button id="btn-trade-rules" class="btn" title="Checklist / Trade Rules" onclick="TogglePanels.rules()">
+                    <i data-lucide="list-todo"></i>
+                </button>
+                <button class="btn btn-red" onclick="SessionManager.showDashboard()" title="Dashboard [D]">
+                    <i data-lucide="settings"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="trade-panel-container">
+            <button type="button" class="btn" onclick="Engine.applyDrawingToOrderPanel()" style="width:100%; justify-content:center;">
+                <i data-lucide="crosshair"></i> Import from RR Drawing
+            </button>
+            <div class="panel-row">
+                <span style="color:var(--text-muted);">Type</span>
+                <select id="trade-order-type" class="control-input" onchange="Engine.toggleLimitField()" style="width:62%">
+                    <option value="MARKET">Market</option>
+                    <option value="LIMIT">Limit Order</option>
+                </select>
+            </div>
+            <div class="panel-row" id="limit-price-row">
+                <span style="color:var(--text-muted);">Limit $</span>
+                <input type="number" id="trade-entry-price" class="control-input" style="width:62%" step="0.01">
+            </div>
+            <div class="panel-row">
+                <span style="color:var(--text-muted);">Stop Loss</span>
+                <div style="display:flex; gap:4px; width:62%;">
+                    <input type="number" id="trade-sl-price" class="control-input" step="any" placeholder="0.0000" style="flex:1; width:100%;">
+                    <button type="button" class="btn" onclick="pasteToStopLoss()" style="padding:0 6px; height:24px;" title="Paste from clipboard">📋</button>
+                </div>
+            </div>
+            <div class="panel-row">
+                <span style="color:var(--text-muted);">R : R</span>
+                <input type="number" id="trade-rr-ratio" class="control-input" style="width:62%" value="2" step="0.1">
+			
+            </div>
+            <div class="panel-row">
+                <span style="color:var(--text-muted);">Risk $</span>
+                <input type="number" id="trade-risk-usd" class="control-input" style="width:62%" value="10">
+            </div>
+            <input type="text" id="trade-note" class="control-input" placeholder="Trade note (optional)…" style="width:100%">
+            <div style="display:flex; gap:4px;">
+                <button class="btn btn-green" onclick="Engine.createOrder('BUY')" style="flex:1">
+                    <i data-lucide="trending-up"></i> Buy
+                </button>
+                <button class="btn btn-red" onclick="Engine.createOrder('SELL')" style="flex:1">
+                    <i data-lucide="trending-down"></i> Sell
+                </button>
+            </div>
+        </div>
+
+        <div id="active-positions-list"></div>
+        <div id="pending-orders-container"></div>
+
+    </div>
+
+    <div id="floating-control-bar">
+        <button class="btn btn-icon" id="btn-collapse" onclick="document.getElementById('floating-control-bar').classList.toggle('collapsed')">⋮</button>
+        <button class="btn btn-icon" id="btn-play" onclick="Engine.togglePlay()" title="Play/Pause (Space)">
+            <i data-lucide="play" id="play-icon"></i>
+        </button>
+        <button class="btn btn-icon" id="btn-step" onclick="Engine.stepForward()" title="Step Forward (→)">
+            <i data-lucide="skip-forward"></i>
+        </button>
+        <select id="step-count" class="control-input" style="width:44px; text-align:center;">
+			<option value="1">1</option>
+			<option value="2">2</option>
+			<option value="3">3</option>
+			<option value="4">4</option>
+			<option value="5">5</option>
+		</select>
+        <input type="range" id="replay-speed-slider" min="0" max="100" value="50" oninput="Engine.updateSpeedFromSlider()">
+    </div>
+
+    <div id="kb-hints">
+        <span><span class="kbd">Space</span> Play</span>
+        <span><span class="kbd">→</span> Step</span>
+        <span><span class="kbd">B</span> Buy</span>
+        <span><span class="kbd">S</span> Sell</span>
+        <span><span class="kbd">D</span> Dashboard</span>
+        <span><span class="kbd">J</span> Journal</span>
+        <span><span class="kbd">T</span> Theme</span>
+    </div>
+
+    <div class="modal-overlay active" id="dashboard-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span style="font-size:16px; font-weight:700; color:#fff; display:flex; align-items:center; gap:12px;">
+                    <i data-lucide="layout-dashboard"></i> Backtest Dashboard
+                    <button class="btn" id="btn-toggle-form" onclick="toggleFormVisibility()" style="height:24px; font-size:10px; padding:0 8px; border-radius:6px; background: rgba(255,255,255,0.05);">
+                        <i data-lucide="eye-off" style="width:10px; height:10px;"></i> Toggle Creator
+                    </button>
+					
+                </span>
+				<a href="http://127.0.0.1:8000/src/jornal.html" target="_blank" rel="noopener noreferrer" class="btn btn-orange" style="text-decoration: none;">
+					<i data-lucide="feather"></i> open Notebook
+				</a>
+                <button class="btn btn-icon"
+                    onclick="if(window.SessionManager.getActiveSessionId()){document.getElementById('dashboard-overlay').classList.remove('active');}else{Swal.fire({background:'#161a25',color:'#d1d4dc',icon:'info',title:'No session',text:'Create or load a session first.'});}">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <div class="session-grid" id="main-dashboard-grid">
+                <form class="form-section" id="create-session-form">
+                    <div class="field-label">New Simulation</div>
+                    <input type="text" id="sess-symbol" class="control-input" placeholder="Session / Symbol name" required>
+                    <select id="sess-file-name" class="control-input" required>
+                        <option value="">Scanning src/data/ …</option>
+                    </select>
+                    <input type="number" id="sess-balance" class="control-input" placeholder="Initial balance ($)" value="10000" required>
+                    <div class="field-label">Price decimals</div>
+                    <select id="sess-decimals" class="control-input" required>
+                        <option value="2">2 (btc)</option>
+                        <option value="3">3 (gold)</option>
+                        <option value="4">4</option>
+                        <option value="5" selected>5 (eur)</option>
+                    </select>
+                    <div class="field-label">Start point</div>
+                    <input type="datetime-local" id="sess-start" class="control-input" required>
+                    <div class="field-label">End limit</div>
+                    <input type="datetime-local" id="sess-end" class="control-input" required>
+                    <button type="submit" class="btn btn-blue" style="height:34px; margin-top:auto;">
+                        <i data-lucide="plus-circle"></i>
+                        <span id="create-btn-text">Create Session</span>
+                    </button>
+                </form>
+
+                <div style="display:flex; flex-direction:column; gap:10px; min-height:0;">
+                    <div class="field-label">Saved Sessions</div>
+                    <div class="list-section" id="dashboard-sessions-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="history-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:6px;">
+                    <i data-lucide="book-open"></i> Trade Journal
+                </span>
+                <button class="btn btn-icon" onclick="document.getElementById('history-modal').classList.remove('active')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div id="history-list"></div>
+        </div>
+    </div>
+
+    <div id="pos-detail-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span id="pd-title" style="font-weight:700; font-size:13px; color:#fff;"></span>
+            <button class="btn btn-icon" onclick="Engine.closeDetailPanel()" style="width:22px; height:22px; font-size:13px;">✕</button>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; font-size:11px;">
+            <div style="display:flex; flex-direction:column; gap:2px;">
+                <span class="pd-label">Entry</span>
+                <span id="pd-entry" style="font-family:monospace; color:var(--text-main);"></span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:2px; align-items:flex-end;">
+                <span class="pd-label">PnL</span>
+                <span id="pd-pnl" style="font-weight:700; font-size:13px;"></span>
+            </div>
+        </div>
+
+        <div class="pd-divider"></div>
+
+        <div>
+            <span class="pd-label" style="display:block; margin-bottom:5px;">Modify SL / TP</span>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                <div style="display:flex; flex-direction:column; gap:3px;">
+                    <span class="pd-label">Stop Loss</span>
+                    <input type="number" step="any" id="pd-sl" class="control-input" style="height:26px; font-size:11px;">
+                </div>
+                <div style="display:flex; flex-direction:column; gap:3px;">
+                    <span class="pd-label">Take Profit</span>
+                    <input type="number" step="any" id="pd-tp" class="control-input" style="height:26px; font-size:11px;">
+                </div>
+            </div>
+            <button class="btn btn-blue" onclick="Engine.applyDetailChanges()" style="width:100%; height:26px; font-size:11px; margin-top:6px;">Apply SL / TP</button>
+        </div>
+
+        <div class="pd-divider"></div>
+
+        <div>
+            <span class="pd-label" style="display:block; margin-bottom:5px;">Close Position</span>
+            <div style="display:flex; gap:6px; align-items:center;">
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                    <span class="pd-label">Size to close</span>
+                    <input type="number" step="0.01" min="0.01" id="pd-partial-lots" class="control-input" style="height:26px; font-size:11px; width:100%;">
+                </div>
+                <button class="btn btn-red" onclick="Engine.closePartial()" style="height:26px; font-size:11px; padding:0 12px; align-self:flex-end;">Close</button>
+            </div>
+            <button class="btn" onclick="Engine.closePositionFull(+document.getElementById('pos-detail-panel').dataset.posId)" style="width:100%; height:24px; font-size:10px; margin-top:5px; color:var(--accent-red); border-color:var(--accent-red);">Close All</button>
+        </div>
+    </div>
+	
+	
+
+    <script src="src/main.js"></script>
+	
+    
+
+    <script>
+        const TogglePanels = {
+            trade: function() {
+                const trPanel = document.getElementById('tr-panel');
+                if (trPanel && trPanel.style.display !== 'none') {
+                    if (window.TRManager && typeof window.TRManager.togglePanel === 'function') {
+                        window.TRManager.togglePanel();
+                    } else {
+                        trPanel.style.display = 'none';
+                    }
+                }
+                if (window.Engine && typeof window.Engine.toggleTradePanel === 'function') {
+                    window.Engine.toggleTradePanel();
+                }
+            },
+            rules: function() {
+                const tradeContainer = document.getElementById('trade-panel-container');
+                if (tradeContainer && tradeContainer.classList.contains('open')) {
+                    tradeContainer.classList.remove('open');
+                }
+                const trPanel = document.getElementById('tr-panel');
+                if (trPanel && trPanel.style.display === 'flex') {
+                    trPanel.style.display = 'none';
+                    if (window.TRManager) window.TRManager.isOpen = () => false;
+                } else {
+                    if (window.TRManager && typeof window.TRManager.togglePanel === 'function') {
+                        window.TRManager.togglePanel();
+                    } else if (trPanel) {
+                        trPanel.style.display = 'flex';
+                    }
+                }
+            }
+        };
+
+        function pasteToStopLoss() {
+            navigator.clipboard.readText().then(text => {
+                const val = parseFloat(text);
+                if (!isNaN(val)) {
+                    document.getElementById("trade-sl-price").value = val;
+                }
+            }).catch(err => console.error('Clipboard error:', err));
+        }
+
+        function toggleFormVisibility() {
+            const grid = document.getElementById('main-dashboard-grid');
+            const btn = document.getElementById('btn-toggle-form');
+            grid.classList.toggle('hide-form');
+            if (grid.classList.contains('hide-form')) {
+                btn.innerHTML = '<i data-lucide="eye" style="width:10px; height:10px;"></i> Show Creator';
+            } else {
+                btn.innerHTML = '<i data-lucide="eye-off" style="width:10px; height:10px;"></i> Toggle Creator';
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof SessionManager !== 'undefined' && typeof SessionManager.showDashboard === 'function') {
+                SessionManager.showDashboard();
+            }
+            document.addEventListener('click', function(e) {
+                const closeBtn = e.target.closest('.tr-close-btn') || e.target.closest('[id*="close"]');
+                const trPanel = document.getElementById('tr-panel');
+                if (closeBtn && trPanel && trPanel.contains(closeBtn)) {
+                    trPanel.style.display = 'none';
+                    if (window.TRManager) window.TRManager.isOpen = () => false;
+                }
+            }, true);
+        });
+    </script>
+</body>
+</html>
